@@ -1,7 +1,6 @@
-using System.Threading.Tasks;
-using Unity.VisualScripting;
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UIElements;
+using static UnityEngine.GraphicsBuffer;
 
 public class Board : MonoBehaviour
 {
@@ -19,6 +18,10 @@ public class Board : MonoBehaviour
 
     // Store the Board Pieces Positions.
     private Piece[,] boardPieces;
+
+    // Store The Dead Pieces.
+    private List<Piece> deadWhitePieces = new List<Piece>();
+    private List<Piece> deadBlackPieces = new List<Piece>();
 
     // Store the position of the selected Chess Piece, So you can move it.
     private Vector2Int selectedPiecePosition = new Vector2Int(-1, -1);
@@ -60,7 +63,9 @@ public class Board : MonoBehaviour
                 else
                 {
                     // Second click - move piece
-                    MovePieceTo(selectedPiecePosition.x, selectedPiecePosition.y, xIndex, yIndex);
+                    Piece piece = boardPieces[selectedPiecePosition.x, selectedPiecePosition.y];
+                    MovePieceTo(piece, xIndex, yIndex);
+
                     selectedPiecePosition = new Vector2Int(-1, -1); // Reset selected piece
                 }
             }
@@ -137,9 +142,10 @@ public class Board : MonoBehaviour
         }
     }
 
-    // Position Chess Pieces On The Board for the first time.
+    // Position Chess Pieces On The Board.
     private void PositionPieces()
     {
+        // Position Pieces On the Board after the game starts.
         for (int xCoord = 0; xCoord < CountPiecesX; xCoord++)
         {
             for (int yCoord = 0; yCoord < CountPiecesY; yCoord++)
@@ -157,25 +163,58 @@ public class Board : MonoBehaviour
         piece.currentY = yCoord;
         piece.transform.position = new Vector3(xCoord * squareSize, yCoord * squareSize, -1);
     }
+    private void PositionDeadPiece(Piece deadPiece)
+    {
+        int pieceIndex = 0;
+
+        if (deadPiece.color == PieceColor.White)
+        {
+            pieceIndex = deadWhitePieces.IndexOf(deadPiece);
+            deadPiece.transform.position = new Vector3(8 * squareSize, pieceIndex, -1);
+        }
+        else
+        {
+            pieceIndex = deadBlackPieces.IndexOf(deadPiece);
+            deadPiece.transform.position = new Vector3(-1 * squareSize, 7 * squareSize - pieceIndex, -1);
+        }
+
+        deadPiece.SetScale(0.3f, 0.3f);
+    }
 
     // Move Pieces
-    private void MovePieceTo(int previousX, int previousY, int targetX, int targetY)
+    private void MovePieceTo(Piece piece, int targetX, int targetY)
     {
-        if (boardPieces[previousX, previousY] == null) return; // No piece to move
-        
-        if (boardPieces[targetX, targetY] != null) return; // Target position is occupied
+        if (boardPieces[piece.currentX, piece.currentY] == null) return; // No piece to move
 
-        Piece piece = boardPieces[previousX, previousY];
-
-        Square previousSquare = boardSquares[previousX, previousY];
+        // Get The Squares in this move, so you can change their colors.
+        Square previousSquare = boardSquares[piece.currentX, piece.currentY];
         Square targetSquare = boardSquares[targetX, targetY];
 
         // Validate move according to piece rules
-        //if (!piece.IsValidMove(previousX, previousY, targetX, targetY)) return;
+        //if (!piece.IsValidMove(targetX, targetY)) return;
 
+        // Is It Our Turn?
+
+        // Is There a piece on the target position?
+        if (boardPieces[targetX, targetY] != null) // Target position is occupied
+        {
+            // Target Position is Occupied with a piece in the same team.
+            if (boardPieces[targetX, targetY].color == piece.color) return;
+            else // Target Position is Occupied with an enemy piece, So eat it.
+            {
+                if (boardPieces[targetX, targetY].color == PieceColor.White)
+                    deadWhitePieces.Add(boardPieces[targetX, targetY]);
+                else
+                    deadBlackPieces.Add(boardPieces[targetX, targetY]);
+
+                this.PositionDeadPiece(boardPieces[targetX, targetY]);
+            }
+        }
+
+        // Move the selected piece in the array.
         boardPieces[targetX, targetY] = piece;
-        boardPieces[previousX, previousY] = null;
-
+        boardPieces[piece.currentX, piece.currentY] = null;
+        
         // Position the Piece into the target Position.
         this.PositionSinglePiece(piece, targetX, targetY);
 

@@ -38,6 +38,12 @@ public class Piece : MonoBehaviour
             this.GetComponent<SpriteRenderer>().sprite = blackSprite;
         }
     }
+
+    public void SetScale(float x, float y, float z = 0)
+    {
+        transform.localScale = new Vector3(x, y, z);
+    }
+
     private void Update()
     {
         
