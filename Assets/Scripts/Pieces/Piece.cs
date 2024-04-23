@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Diagnostics.Tracing;
 using UnityEngine;
 
@@ -42,6 +43,18 @@ public class Piece : MonoBehaviour
     public void SetScale(float x, float y, float z = 0)
     {
         transform.localScale = new Vector3(x, y, z);
+    }
+
+    public List<Vector2Int> GetAvailableMoves(ref Piece[,] boardPieces)
+    {
+         List<Vector2Int> moves = new List<Vector2Int>();
+
+        moves.Add(new Vector2Int(3, 2));
+        moves.Add(new Vector2Int(3, 3));
+        moves.Add(new Vector2Int(3, 4));
+        moves.Add(new Vector2Int(3, 5));
+
+        return moves;
     }
 
     private void Update()

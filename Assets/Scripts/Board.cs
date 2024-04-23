@@ -1,37 +1,50 @@
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using static UnityEngine.GraphicsBuffer;
 
 public class Board : MonoBehaviour
 {
-    [Header("Board Squares")]
     // Reference The Square Graphics.
+    [Header("Board Squares")]
     [SerializeField] private Square squarePrefab;
     public static readonly float squareSize = 2f;
 
-    private Square[,] boardSquares = new Square[8, 8];
+    protected Square[,] boardSquares = new Square[8, 8];
     private Color[,] squareColors = new Color[8, 8];
+    
+    // Square Color after the move (feedback). and square color for available move.
+    private readonly Color feedbackColor1 = new Color32(244, 245, 149, 255);
+    private readonly Color feedbackColor2 = new Color32(209, 210, 98, 255);
 
-    [Header("Board Pieces")]
     // Store The Chess Pieces Prefabs.
+    [Header("Board Pieces")]
     [SerializeField] private GameObject[] pieces;
 
+    [Header("Audio")]
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip moveAudioClip;
+    [SerializeField] private AudioClip captureAudioClip;
+    
     // Store the Board Pieces Positions.
-    private Piece[,] boardPieces;
+    protected Piece[,] boardPieces;
 
     // Store The Dead Pieces.
-    private List<Piece> deadWhitePieces = new List<Piece>();
-    private List<Piece> deadBlackPieces = new List<Piece>();
+    protected List<Piece> deadWhitePieces = new List<Piece>();
+    protected List<Piece> deadBlackPieces = new List<Piece>();
 
     // Store the position of the selected Chess Piece, So you can move it.
     private Vector2Int selectedPiecePosition = new Vector2Int(-1, -1);
+    
+    // Store the Available Moves for the selected piece.
+    private List<Vector2Int> pieceAvailableMoves = new List<Vector2Int>();
 
     // Store the Move Count, So you can change the Squares Colors after the second move.
     private int moveCount = 1;
 
     // Count the X, Y Coords (Board Width and Height).
-    private const int CountPiecesX = 8;
-    private const int CountPiecesY = 8;
+    protected const int CountSquaresX = 8;
+    protected const int CountSquaresY = 8;
 
     void Awake()
     {
@@ -58,13 +71,23 @@ public class Board : MonoBehaviour
                     if (boardPieces[xIndex, yIndex] != null)
                     {
                         selectedPiecePosition = new Vector2Int(xIndex, yIndex);
+
+                        // Highlight The Square Clicked.
+                        boardSquares[xIndex, yIndex].ObjectColor = feedbackColor1;
+
+                        // Get Available Moves for the selected piece.
+                        pieceAvailableMoves = boardPieces[xIndex, yIndex].GetAvailableMoves(ref boardPieces);
+                        
+                        // Highlight The Availble Moves Squares.
+                        this.HighlightAvailableMovesSquares();
                     }
+                    
                 }
                 else
                 {
                     // Second click - move piece
                     Piece piece = boardPieces[selectedPiecePosition.x, selectedPiecePosition.y];
-                    MovePieceTo(piece, xIndex, yIndex);
+                    this.MovePieceTo(piece, xIndex, yIndex);
 
                     selectedPiecePosition = new Vector2Int(-1, -1); // Reset selected piece
                 }
@@ -75,16 +98,16 @@ public class Board : MonoBehaviour
     // Create The Chess Board Squares.
     private void GenerateBoard()
     {
-        for (int i = 0; i < CountPiecesX; i++)
+        for (int i = 0; i < CountSquaresX; i++)
         {
-            for (int j = 0; j < CountPiecesY; j++)
+            for (int j = 0; j < CountSquaresY; j++)
             {
                 Square square = Instantiate(squarePrefab, new Vector3(i * squareSize, j * squareSize), Quaternion.identity, transform);
                 boardSquares[i, j] = square;
 
-                bool isOffset = (i % 2 == 0 && j % 2 != 0) || (i % 2 != 0 && j % 2 == 0);
+                bool isOdd = (i % 2 == 0 && j % 2 != 0) || (i % 2 != 0 && j % 2 == 0);
 
-                square.Initialize(isOffset);
+                square.Initialize(isOdd);
                 squareColors[i, j] = square.ObjectColor;
             }
         }
@@ -93,7 +116,7 @@ public class Board : MonoBehaviour
     // Spawn Chess Pieces.
     private void SpawnPieces()
     {
-        boardPieces = new Piece[CountPiecesX, CountPiecesY];
+        boardPieces = new Piece[CountSquaresX, CountSquaresY];
 
         PieceType[] pieceTypes = new PieceType[] { PieceType.Rook, PieceType.Knight, PieceType.Bishop, PieceType.Queen, PieceType.King, PieceType.Bishop, PieceType.Knight, PieceType.Rook };
         
@@ -146,9 +169,9 @@ public class Board : MonoBehaviour
     private void PositionPieces()
     {
         // Position Pieces On the Board after the game starts.
-        for (int xCoord = 0; xCoord < CountPiecesX; xCoord++)
+        for (int xCoord = 0; xCoord < CountSquaresX; xCoord++)
         {
-            for (int yCoord = 0; yCoord < CountPiecesY; yCoord++)
+            for (int yCoord = 0; yCoord < CountSquaresY; yCoord++)
             {
                 if (boardPieces[xCoord, yCoord] != null)
                 {
@@ -157,13 +180,13 @@ public class Board : MonoBehaviour
             }
         }
     }
-    private void PositionSinglePiece(Piece piece, int xCoord, int yCoord)
+    protected void PositionSinglePiece(Piece piece, int xCoord, int yCoord)
     {
         piece.currentX = xCoord;
         piece.currentY = yCoord;
         piece.transform.position = new Vector3(xCoord * squareSize, yCoord * squareSize, -1);
     }
-    private void PositionDeadPiece(Piece deadPiece)
+    protected void PositionDeadPiece(Piece deadPiece)
     {
         int pieceIndex = 0;
 
@@ -195,17 +218,31 @@ public class Board : MonoBehaviour
 
         // Is It Our Turn?
 
+        // Remove the colors of available moves.
+        this.ResetBoardColors(previousSquare, targetSquare);
+
+        // Is The Move an attack?
+        bool isAttacking = false;
+
         // Is There a piece on the target position?
         if (boardPieces[targetX, targetY] != null) // Target position is occupied
         {
             // Target Position is Occupied with a piece in the same team.
-            if (boardPieces[targetX, targetY].color == piece.color) return;
+            if (boardPieces[targetX, targetY].color == piece.color)
+            {
+                this.ResetBoardColors(null, null);
+                return;
+            }
             else // Target Position is Occupied with an enemy piece, So eat it.
             {
+                isAttacking = true;
                 if (boardPieces[targetX, targetY].color == PieceColor.White)
                     deadWhitePieces.Add(boardPieces[targetX, targetY]);
                 else
                     deadBlackPieces.Add(boardPieces[targetX, targetY]);
+
+                // Play Attacking Audio Clip.
+                audioSource.PlayOneShot(captureAudioClip);
 
                 this.PositionDeadPiece(boardPieces[targetX, targetY]);
             }
@@ -218,7 +255,10 @@ public class Board : MonoBehaviour
         // Position the Piece into the target Position.
         this.PositionSinglePiece(piece, targetX, targetY);
 
-        // Increment The Move Count.
+        // Play Movement Audio Clip.
+        if (!isAttacking)
+            audioSource.PlayOneShot(moveAudioClip);
+
         moveCount++;
 
         // Make A Square Feedback (Change its Color) for every move.
@@ -227,9 +267,9 @@ public class Board : MonoBehaviour
 
     private void ChangeMoveColors(Square previous, Square target)
     {
-        previous.ObjectColor = Color.gray;
-        target.ObjectColor = Color.gray;
-
+        previous.ObjectColor = feedbackColor1;
+        target.ObjectColor = feedbackColor2;
+       
         // Reset The Colors after the second move.
         if (moveCount == 2)
         {
@@ -239,14 +279,21 @@ public class Board : MonoBehaviour
         }
     }
 
-    private void ResetBoardColors(Square first, Square second)
+    private void HighlightAvailableMovesSquares()
+    {
+        for (int i = 0; i < this.pieceAvailableMoves.Count; i++)
+        {
+            boardSquares[this.pieceAvailableMoves[i].x, this.pieceAvailableMoves[i].y].ObjectColor = new Color32(116, (byte)(140 + i * 20), 35, 150);
+        }
+    }
+    protected void ResetBoardColors(Square first, Square second)
     {
         // Reset the colors of the squares
-        for (int i = 0; i < CountPiecesX; i++)
+        for (int i = 0; i < CountSquaresX; i++)
         {
-            for (int j = 0; j < CountPiecesY; j++)
+            for (int j = 0; j < CountSquaresY; j++)
             {
-                if (boardSquares[i, j] != first && boardSquares[i, j] != second && boardSquares[i, j].ObjectColor == Color.gray)
+                if (boardSquares[i, j] != first && boardSquares[i, j] != second && boardSquares[i, j].ObjectColor != squareColors[i, j])
                 {
                     boardSquares[i, j].ObjectColor = squareColors[i, j];
                 }
@@ -262,7 +309,7 @@ public class Board : MonoBehaviour
         int xIndex = Mathf.RoundToInt(worldPosition.x / squareSize);
         int yIndex = Mathf.RoundToInt(worldPosition.y / squareSize);
 
-        if (xIndex >= 0 && xIndex < CountPiecesX && yIndex >= 0 && yIndex < CountPiecesY)
+        if (xIndex >= 0 && xIndex < CountSquaresX && yIndex >= 0 && yIndex < CountSquaresY)
         {
             return new Vector2Int(xIndex, yIndex);
         }

@@ -4,9 +4,14 @@ using UnityEngine;
 
 public class Square : MonoBehaviour
 {
-    [SerializeField] public Color baseColor;
-    [SerializeField] public Color offsetColor;
+    [SerializeField] private Color baseColor;
+    [SerializeField] private Color oddColor;
     [SerializeField] private SpriteRenderer spriteRenderer;
+
+    public Vector3 Position
+    {
+        get { return transform.position; }
+    }
 
     public Color ObjectColor
     { 
@@ -16,8 +21,8 @@ public class Square : MonoBehaviour
     
 
     // Initialize Color
-    public void Initialize(bool isOffset)
+    public void Initialize(bool isOdd)
     {
-        spriteRenderer.color = isOffset ? offsetColor : baseColor;
+        spriteRenderer.color = isOdd ? oddColor : baseColor;
     }
 }
