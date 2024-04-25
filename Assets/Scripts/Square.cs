@@ -7,6 +7,7 @@ public class Square : MonoBehaviour
     [SerializeField] private Color baseColor;
     [SerializeField] private Color oddColor;
     [SerializeField] private SpriteRenderer spriteRenderer;
+    [SerializeField] private GameObject highlight;
 
     public Vector3 Position
     {

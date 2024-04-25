@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using static Unity.Collections.AllocatorManager;
 using static UnityEngine.GraphicsBuffer;
 
 public class Board : MonoBehaviour
@@ -21,13 +23,11 @@ public class Board : MonoBehaviour
     [Header("Board Pieces")]
     [SerializeField] private GameObject[] pieces;
 
-    [Header("Audio")]
-    [SerializeField] private AudioSource audioSource;
-    [SerializeField] private AudioClip moveAudioClip;
-    [SerializeField] private AudioClip captureAudioClip;
+    [Header("Game Manager")]
+    [SerializeField] private GameManager gameManager;
     
     // Store the Board Pieces Positions.
-    protected Piece[,] boardPieces;
+    public static Piece[,] boardPieces;
 
     // Store The Dead Pieces.
     protected List<Piece> deadWhitePieces = new List<Piece>();
@@ -42,12 +42,22 @@ public class Board : MonoBehaviour
     // Store the Move Count, So you can change the Squares Colors after the second move.
     private int moveCount = 1;
 
+    // Store The White Turn to play, then you can control turns for players.
+    private bool isWhiteTurn;
+
+    private bool gameEnded = false;
+
     // Count the X, Y Coords (Board Width and Height).
-    protected const int CountSquaresX = 8;
-    protected const int CountSquaresY = 8;
+    public const int CountSquaresX = 8;
+    public const int CountSquaresY = 8;
+
+    public static Board board;
 
     void Awake()
     {
+        board = this;
+        isWhiteTurn = true;
+
         this.GenerateBoard();
 
         this.SpawnPieces();
@@ -57,6 +67,8 @@ public class Board : MonoBehaviour
 
     private void Update()
     {
+        if (gameEnded) return;
+
         // Move Chess Pieces With Mouse Button.
         if (Input.GetMouseButtonDown(0))
         {
@@ -70,22 +82,26 @@ public class Board : MonoBehaviour
                     // First click - select piece
                     if (boardPieces[xIndex, yIndex] != null)
                     {
-                        selectedPiecePosition = new Vector2Int(xIndex, yIndex);
+                        // Is It Player Turn?
+                        if ((boardPieces[xIndex, yIndex].color == PieceColor.White && isWhiteTurn) || (boardPieces[xIndex, yIndex].color == PieceColor.Black && !isWhiteTurn))
+                        {
+                            selectedPiecePosition = new Vector2Int(xIndex, yIndex);
 
-                        // Highlight The Square Clicked.
-                        boardSquares[xIndex, yIndex].ObjectColor = feedbackColor1;
 
-                        // Get Available Moves for the selected piece.
-                        pieceAvailableMoves = boardPieces[xIndex, yIndex].GetAvailableMoves(ref boardPieces);
-                        
-                        // Highlight The Availble Moves Squares.
-                        this.HighlightAvailableMovesSquares();
+                            // Highlight The Square Clicked.
+                            boardSquares[xIndex, yIndex].ObjectColor = feedbackColor1;
+
+                            // Get Available Moves for the selected piece.
+                            pieceAvailableMoves = boardPieces[xIndex, yIndex].GetAvailableMoves(ref boardPieces);
+
+                                // Highlight The Availble Moves Squares.
+                                this.HighlightAvailableMovesSquares();
+                        }
                     }
                     
                 }
-                else
+                else // Second click - move piece
                 {
-                    // Second click - move piece
                     Piece piece = boardPieces[selectedPiecePosition.x, selectedPiecePosition.y];
                     this.MovePieceTo(piece, xIndex, yIndex);
 
@@ -126,9 +142,9 @@ public class Board : MonoBehaviour
         // Black Pieces.
         this.FillPiecesArray(pieceTypes, PieceColor.Black);
     }
-    private Piece SpawnSinglePiece(PieceType type, PieceColor color)
+    public static Piece SpawnSinglePiece(PieceType type, PieceColor color)
     {
-        GameObject pieceType = pieces[(int)type - 1];
+        GameObject pieceType = board.pieces[(int)type - 1];
         Piece piece = Instantiate(pieceType).GetComponent<Piece>();
 
         piece.type = type;
@@ -180,7 +196,7 @@ public class Board : MonoBehaviour
             }
         }
     }
-    protected void PositionSinglePiece(Piece piece, int xCoord, int yCoord)
+    public static void PositionSinglePiece(Piece piece, int xCoord, int yCoord)
     {
         piece.currentX = xCoord;
         piece.currentY = yCoord;
@@ -214,9 +230,15 @@ public class Board : MonoBehaviour
         Square targetSquare = boardSquares[targetX, targetY];
 
         // Validate move according to piece rules
-        //if (!piece.IsValidMove(targetX, targetY)) return;
+        if (!piece.IsValidMove(targetX, targetY))
+        {
+            gameManager.PlayAudioClip(gameManager.notifyAudioClip);
+            ResetBoardColors(null, null);
+            return;
+        }
 
-        // Is It Our Turn?
+        // change turns of the movement.
+        isWhiteTurn = !isWhiteTurn;
 
         // Remove the colors of available moves.
         this.ResetBoardColors(previousSquare, targetSquare);
@@ -230,6 +252,7 @@ public class Board : MonoBehaviour
             // Target Position is Occupied with a piece in the same team.
             if (boardPieces[targetX, targetY].color == piece.color)
             {
+                gameManager.PlayAudioClip(gameManager.notifyAudioClip);
                 this.ResetBoardColors(null, null);
                 return;
             }
@@ -242,9 +265,12 @@ public class Board : MonoBehaviour
                     deadBlackPieces.Add(boardPieces[targetX, targetY]);
 
                 // Play Attacking Audio Clip.
-                audioSource.PlayOneShot(captureAudioClip);
+                gameManager.PlayAudioClip(gameManager.captureAudioClip);
 
                 this.PositionDeadPiece(boardPieces[targetX, targetY]);
+
+                if (boardPieces[targetX, targetY].type == PieceType.King)
+                    CheckMate(piece.color);
             }
         }
 
@@ -253,11 +279,11 @@ public class Board : MonoBehaviour
         boardPieces[piece.currentX, piece.currentY] = null;
         
         // Position the Piece into the target Position.
-        this.PositionSinglePiece(piece, targetX, targetY);
+        PositionSinglePiece(piece, targetX, targetY);
 
         // Play Movement Audio Clip.
         if (!isAttacking)
-            audioSource.PlayOneShot(moveAudioClip);
+            gameManager.PlayAudioClip(gameManager.moveAudioClip);
 
         moveCount++;
 
@@ -283,7 +309,12 @@ public class Board : MonoBehaviour
     {
         for (int i = 0; i < this.pieceAvailableMoves.Count; i++)
         {
-            boardSquares[this.pieceAvailableMoves[i].x, this.pieceAvailableMoves[i].y].ObjectColor = new Color32(116, (byte)(140 + i * 20), 35, 150);
+            if (!IsEmptySquare(boardPieces, pieceAvailableMoves[i].x, pieceAvailableMoves[i].y) && Piece.IsEnemy(boardPieces[selectedPiecePosition.x, selectedPiecePosition.y], boardPieces[pieceAvailableMoves[i].x, pieceAvailableMoves[i].y]))
+            {
+                boardSquares[this.pieceAvailableMoves[i].x, this.pieceAvailableMoves[i].y].ObjectColor = new Color32(148, 42, 42, 255);
+                continue;
+            }
+            boardSquares[this.pieceAvailableMoves[i].x, this.pieceAvailableMoves[i].y].ObjectColor = new Color32(116, (byte)(255 - i * 5), 35, 255);
         }
     }
     protected void ResetBoardColors(Square first, Square second)
@@ -315,5 +346,16 @@ public class Board : MonoBehaviour
         }
 
         return new Vector2Int(-1, -1);
+    }
+
+    public static bool IsEmptySquare(Piece[,] board, int xIndex, int yIndex)
+    {
+        return board[xIndex, yIndex] == null;
+    }
+
+    private void CheckMate(PieceColor color)
+    {
+        gameEnded = true;
+        gameManager.EndGame((int)color + 1);
     }
 }

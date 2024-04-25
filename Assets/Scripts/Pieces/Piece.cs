@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.Tracing;
 using UnityEngine;
+using static UnityEngine.GraphicsBuffer;
 
 public enum PieceType
 {
@@ -15,7 +16,7 @@ public enum PieceType
 
 public enum PieceColor { White = 0, Black = 1 };
 
-public class Piece : MonoBehaviour
+public abstract class Piece : MonoBehaviour
 {
     public PieceType type;
     public PieceColor color;
@@ -27,6 +28,7 @@ public class Piece : MonoBehaviour
     public int currentX;
     public int currentY;
     protected Vector3 desiredPosition;
+    protected List<Vector2Int> validMoves;
 
     public void SetSprite(PieceColor color)
     {
@@ -45,20 +47,36 @@ public class Piece : MonoBehaviour
         transform.localScale = new Vector3(x, y, z);
     }
 
-    public List<Vector2Int> GetAvailableMoves(ref Piece[,] boardPieces)
+    public virtual List<Vector2Int> GetAvailableMoves(ref Piece[,] boardPieces)
     {
-         List<Vector2Int> moves = new List<Vector2Int>();
+        List<Vector2Int> validMoves = new()
+        {
+            new(3,3),
+            new(3,4),
+            new(3,5),
+        };
 
-        moves.Add(new Vector2Int(3, 2));
-        moves.Add(new Vector2Int(3, 3));
-        moves.Add(new Vector2Int(3, 4));
-        moves.Add(new Vector2Int(3, 5));
-
-        return moves;
+        return validMoves;
+    }
+    public bool IsValidMove(int targetX, int targetY)
+    {
+        return validMoves.Contains(new Vector2Int(targetX, targetY));
     }
 
-    private void Update()
+    public static bool IsEnemy(Piece attackingPiece, Piece attackedPiece)
     {
+        return attackingPiece.color != attackedPiece.color;
+    }
+
+    protected static void TurnIntoQueen(Piece piece)
+    {
+        Piece queen = Board.SpawnSinglePiece(PieceType.Queen, piece.color);
+        queen.currentX = piece.currentX;
+        queen.currentY = piece.currentY;
         
+        Board.PositionSinglePiece(queen, queen.currentX, queen.currentY);
+        Board.boardPieces[piece.currentX, piece.currentY] = queen;
+        
+        Destroy(piece.gameObject);
     }
 }

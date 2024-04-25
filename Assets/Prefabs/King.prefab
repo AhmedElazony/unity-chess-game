@@ -97,7 +97,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f78f343a26a42e541aa2c8105274bc79, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  type: 1
+  type: 5
   color: 0
   whiteSprite: {fileID: 641404052, guid: a4f288744f8ae064bb6b2613cab83250, type: 3}
   blackSprite: {fileID: -1657142762, guid: a4f288744f8ae064bb6b2613cab83250, type: 3}

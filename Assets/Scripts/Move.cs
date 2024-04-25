@@ -76,7 +76,7 @@ public class Move : Board
         boardPieces[piece.currentX, piece.currentY] = null;
 
         // Position the Piece into the target Position.
-        this.PositionSinglePiece(piece, targetX, targetY);
+        PositionSinglePiece(piece, targetX, targetY);
 
         // Increment The Move Count.
         moveCount++;
