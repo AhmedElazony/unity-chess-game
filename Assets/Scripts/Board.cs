@@ -39,6 +39,9 @@ public class Board : MonoBehaviour
     // Store the Available Moves for the selected piece.
     private List<Vector2Int> pieceAvailableMoves = new List<Vector2Int>();
 
+    // Store Special Moves Like Castling.
+    private List<Vector2Int> pieceSpecialMoves = new List<Vector2Int>();
+
     // Store the Move Count, So you can change the Squares Colors after the second move.
     private int moveCount = 1;
 
@@ -87,15 +90,15 @@ public class Board : MonoBehaviour
                         {
                             selectedPiecePosition = new Vector2Int(xIndex, yIndex);
 
-
                             // Highlight The Square Clicked.
                             boardSquares[xIndex, yIndex].ObjectColor = feedbackColor1;
 
                             // Get Available Moves for the selected piece.
                             pieceAvailableMoves = boardPieces[xIndex, yIndex].GetAvailableMoves(ref boardPieces);
+                            pieceSpecialMoves = boardPieces[xIndex, yIndex].GetSpecialMoves(ref boardPieces);
 
-                                // Highlight The Availble Moves Squares.
-                                this.HighlightAvailableMovesSquares();
+                            // Highlight The Availble Moves Squares.
+                            this.HighlightAvailableMovesSquares();
                         }
                     }
                     
@@ -274,9 +277,18 @@ public class Board : MonoBehaviour
             }
         }
 
+        // Check For King Castling
+        if (piece.type == PieceType.King && pieceSpecialMoves.Contains(new Vector2Int(targetX, targetY)))
+        {
+            Piece rook = (targetX > piece.currentX) ? boardPieces[targetX + 1, targetY] : boardPieces[targetX - 2, targetY];
+            piece.CastleKing(rook, ref boardPieces);
+        }
+
         // Move the selected piece in the array.
         boardPieces[targetX, targetY] = piece;
         boardPieces[piece.currentX, piece.currentY] = null;
+        
+        piece.hasMoved = true;
         
         // Position the Piece into the target Position.
         PositionSinglePiece(piece, targetX, targetY);
@@ -315,6 +327,14 @@ public class Board : MonoBehaviour
                 continue;
             }
             boardSquares[this.pieceAvailableMoves[i].x, this.pieceAvailableMoves[i].y].ObjectColor = new Color32(116, (byte)(255 - i * 5), 35, 255);
+        }
+
+        if (pieceSpecialMoves != null)
+        {
+            for (int i = 0; i < this.pieceSpecialMoves.Count; i++)
+            {
+                boardSquares[pieceSpecialMoves[i].x, pieceSpecialMoves[i].y].ObjectColor = new Color32(255, 178, 0, 255);
+            }
         }
     }
     protected void ResetBoardColors(Square first, Square second)

@@ -312,8 +312,8 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 241443601}
-        m_TargetAssemblyTypeName: Board, Assembly-CSharp
+      - m_Target: {fileID: 1619614257}
+        m_TargetAssemblyTypeName: GameManager, Assembly-CSharp
         m_MethodName: OnResetButton
         m_Mode: 1
         m_Arguments:
@@ -323,7 +323,7 @@ MonoBehaviour:
           m_FloatArgument: 0
           m_StringArgument: 
           m_BoolArgument: 0
-        m_CallState: 2
+        m_CallState: 1
 --- !u!114 &212857082
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -992,8 +992,8 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 241443601}
-        m_TargetAssemblyTypeName: Board, Assembly-CSharp
+      - m_Target: {fileID: 1619614257}
+        m_TargetAssemblyTypeName: GameManager, Assembly-CSharp
         m_MethodName: OnExitButton
         m_Mode: 1
         m_Arguments:

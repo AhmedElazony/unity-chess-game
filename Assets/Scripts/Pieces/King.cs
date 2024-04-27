@@ -41,7 +41,42 @@ public class King : Piece
         if (currentY != 0 && currentX != 0 && (Board.IsEmptySquare(boardPieces, currentX - 1, currentY - 1) || IsEnemy(this, boardPieces[currentX - 1, currentY - 1])))
             validMoves.Add(new Vector2Int(currentX - 1, currentY - 1));
 
-
         return validMoves;
+    }
+    
+    // Add Castling Mov
+    public override List<Vector2Int> GetSpecialMoves(ref Piece[,] boardPieces)
+    {
+        specialMoves = new List<Vector2Int>();
+        
+        // Right Rook.
+        for (int i = currentX + 1; i < Board.CountSquaresX; i++)
+        {
+            if (Board.IsEmptySquare(boardPieces, i, currentY)) continue;
+            else if (!Board.IsEmptySquare(boardPieces, i, currentY) && boardPieces[i, currentY].type == PieceType.Rook)
+            {
+                Piece rook = boardPieces[i, currentY];
+
+                if (!rook.hasMoved && !this.hasMoved)
+                    specialMoves.Add(new Vector2Int(i - 1, currentY));
+            }
+            else break;
+        }
+
+        // Left Rook.
+        for (int i = currentX - 1; i >= 0; i--)
+        {
+            if (Board.IsEmptySquare(boardPieces, i, currentY)) continue;
+            else if (!Board.IsEmptySquare(boardPieces, i, currentY) && boardPieces[i, currentY].type == PieceType.Rook)
+            {
+                Piece rook = boardPieces[i, currentY];
+
+                if (!rook.hasMoved && !this.hasMoved)
+                    specialMoves.Add(new Vector2Int(i + 2, currentY));
+            }
+            else break;
+        }
+
+        return specialMoves;
     }
 }

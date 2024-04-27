@@ -27,8 +27,14 @@ public abstract class Piece : MonoBehaviour
     // Piece Position Coords.
     public int currentX;
     public int currentY;
-    protected Vector3 desiredPosition;
+    public bool hasMoved;
     protected List<Vector2Int> validMoves;
+    protected List<Vector2Int> specialMoves;
+    
+    void Awake()
+    {
+        hasMoved = false;
+    }
 
     public void SetSprite(PieceColor color)
     {
@@ -60,7 +66,15 @@ public abstract class Piece : MonoBehaviour
     }
     public bool IsValidMove(int targetX, int targetY)
     {
-        return validMoves.Contains(new Vector2Int(targetX, targetY));
+        bool result = false;
+
+        if (specialMoves != null && specialMoves.Contains(new Vector2Int(targetX, targetY)))
+            result = true;
+
+        if (validMoves != null &&  validMoves.Contains(new Vector2Int(targetX, targetY)))
+            result = true;
+
+        return result;
     }
 
     public static bool IsEnemy(Piece attackingPiece, Piece attackedPiece)
@@ -78,5 +92,32 @@ public abstract class Piece : MonoBehaviour
         Board.boardPieces[piece.currentX, piece.currentY] = queen;
         
         Destroy(piece.gameObject);
+    }
+
+    public virtual List<Vector2Int> GetSpecialMoves(ref Piece[,] boardPieces)
+    {
+        return null;
+    }
+
+    public virtual void CastleKing(Piece rook, ref Piece[,] boardPieces)
+    {
+        int rookPreviousXPosition = rook.currentX;
+        
+        // Right Rook
+        if (rookPreviousXPosition == 7)
+        {
+            rook.currentX = 5;
+        }
+        else // Left Rook
+        {
+            rook.currentX = 3;
+        }
+        
+        boardPieces[rook.currentX, rook.currentY] = rook;
+        boardPieces[rookPreviousXPosition, rook.currentY] = null;
+
+        rook.hasMoved = true;
+
+        Board.PositionSinglePiece(rook, rook.currentX, rook.currentY);
     }
 }
