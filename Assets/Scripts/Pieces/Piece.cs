@@ -14,12 +14,52 @@ public enum PieceType
     Pawn = 6
 }
 
-public enum PieceColor { White = 0, Black = 1 };
+public struct PieceValue
+{
+    public static int Pawn = 1;
+    public static int Bishop = 3;
+    public static int Knight = 3;
+    public static int Rook = 5;
+    public static int Queen = 9;
+}
 
-public abstract class Piece : MonoBehaviour
+public class PieceData
 {
     public PieceType type;
     public PieceColor color;
+
+    public PieceValue value;
+
+    public int currentX;
+    public int currentY;
+    public bool hasMoved;
+    public bool isDead;
+}
+
+public class PieceMove
+{
+    public Piece Piece { get; set; }
+    public Vector2Int From { get; set; }
+    public Vector2Int To { get; set; }
+    public int Score { get; set; }
+
+    public PieceMove(Piece piece, Vector2Int from, Vector2Int to, int score = 0)
+    {
+        Piece = piece;
+        From = from;
+        To = to;
+        Score = score;
+    }
+}
+
+public enum PieceColor { White = 0, Black = 1 };
+
+public class Piece : MonoBehaviour
+{
+    public PieceType type;
+    public PieceColor color;
+
+    public int Value { get => 0; }
 
     public Sprite whiteSprite;
     public Sprite blackSprite;
@@ -28,8 +68,9 @@ public abstract class Piece : MonoBehaviour
     public int currentX;
     public int currentY;
     public bool hasMoved;
-    protected List<Vector2Int> validMoves;
-    protected List<Vector2Int> specialMoves;
+    public bool isDead;
+    protected List<Vector2Int> validMoves = new();
+    protected List<Vector2Int> specialMoves = new();
     
     void Awake()
     {
@@ -66,15 +107,22 @@ public abstract class Piece : MonoBehaviour
     }
     public bool IsValidMove(int targetX, int targetY)
     {
-        bool result = false;
+        /*bool result = false;
 
         if (specialMoves != null && specialMoves.Contains(new Vector2Int(targetX, targetY)))
             result = true;
 
         if (validMoves != null &&  validMoves.Contains(new Vector2Int(targetX, targetY)))
-            result = true;
+            result = true;*/
+        Vector2Int kingPosition = King.FindKingPosition(Board.boardPieces, Board.isWhiteTurn);
+        List<Vector2Int> validMoves = GetValidMoves(ref Board.boardPieces);
+        Board.SimulateMoveForSinglePiece(this, ref validMoves, kingPosition);
 
-        return result;
+        if (validMoves != null && validMoves.Contains(new(targetX, targetY)))
+            return true;
+
+        return false;
+        //return result;
     }
 
     public static bool IsEnemy(Piece attackingPiece, Piece attackedPiece)
@@ -82,14 +130,14 @@ public abstract class Piece : MonoBehaviour
         return attackingPiece.color != attackedPiece.color;
     }
 
-    protected static void TurnIntoQueen(Piece piece)
+    public static void TurnIntoQueen(Piece piece, int targetX, int targetY)
     {
         Piece queen = Board.SpawnSinglePiece(PieceType.Queen, piece.color);
-        queen.currentX = piece.currentX;
-        queen.currentY = piece.currentY;
+        queen.currentX = targetX;
+        queen.currentY = targetY;
         
         Board.PositionSinglePiece(queen, queen.currentX, queen.currentY);
-        Board.boardPieces[piece.currentX, piece.currentY] = queen;
+        Board.boardPieces[queen.currentX, queen.currentY] = queen;
         
         Destroy(piece.gameObject);
     }
@@ -97,6 +145,16 @@ public abstract class Piece : MonoBehaviour
     public virtual List<Vector2Int> GetSpecialMoves(ref Piece[,] boardPieces)
     {
         return null;
+    }
+
+    public List<Vector2Int> GetValidMoves(ref Piece[,] boardPieces)
+    {
+        List<Vector2Int> moves = GetAvailableMoves(ref boardPieces);
+        
+        if (GetSpecialMoves(ref boardPieces) != null && GetSpecialMoves(ref boardPieces).Count > 0)
+            moves.AddRange(GetSpecialMoves(ref boardPieces));
+
+        return moves;
     }
 
     public virtual void CastleKing(Piece rook, ref Piece[,] boardPieces)

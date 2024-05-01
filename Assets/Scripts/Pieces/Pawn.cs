@@ -6,12 +6,14 @@ using static UnityEngine.GraphicsBuffer;
 
 public class Pawn : Piece
 {
+    public new int Value { get => PieceValue.Pawn; }
+
     private const int WhiteFirstYPosition = 1;
     private const int BlackFirstYPosition = 6;
 
     public override List<Vector2Int> GetAvailableMoves(ref Piece[,] boardPieces)
     {
-        validMoves = new List<Vector2Int>();
+        validMoves.Clear();
 
         int direction = (this.color == PieceColor.White) ? 1 : -1;
 
@@ -63,15 +65,4 @@ public class Pawn : Piece
         return !(Board.IsEmptySquare(boardPieces, targetX, targetY)) 
             && IsEnemy(this, boardPieces[targetX, targetY]);
     }
-
-    private void Update()
-    {
-        // If Pawn Gets to the Last Square (Vertically), Turn it into Queen.
-        if (type == PieceType.Pawn && currentY == ((color == PieceColor.White) ? Board.CountSquaresY - 1 : 0))
-        {
-            Debug.Log("Yes");
-            TurnIntoQueen(this);
-        }
-    }
-
 }

@@ -15,6 +15,22 @@ public class GameManager : MonoBehaviour
 
     [Header("UI")]
     [SerializeField] private GameObject winningScreen;
+    [SerializeField] private GameObject openningScreen;
+
+    public void OnStartButton()
+    {
+        Board.gameEnded = false;
+        Board.gameStarted = true;
+        openningScreen.SetActive(false);
+    }
+
+    public void OnAIButton()
+    {
+        Board.playingWithAI = true;
+        Board.gameStarted = true;
+        Board.gameEnded = false;
+        openningScreen.SetActive(false);
+    }
 
     public void OnResetButton()
     {
@@ -28,6 +44,13 @@ public class GameManager : MonoBehaviour
 
     public void EndGame(int WinningPlayer)
     {
+        Board.gameEnded = true;
+        Board.gameStarted = false;
+        Board.playingWithAI = false;
+        Board.movesList.Clear();
+        Board.AITeamPieces.Clear();
+        Board.deadWhitePieces.Clear();
+        Board.deadBlackPieces.Clear();
         winningScreen.SetActive(true);
         winningScreen.transform.GetChild(WinningPlayer).gameObject.SetActive(true);
         PlayAudioClip(endGameAudioClip);

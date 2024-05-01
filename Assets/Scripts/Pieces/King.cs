@@ -7,7 +7,7 @@ public class King : Piece
 {
     public override List<Vector2Int> GetAvailableMoves(ref Piece[,] boardPieces)
     {
-        validMoves = new List<Vector2Int>();
+        validMoves.Clear();
 
         // Right.
         if (currentX != Board.CountSquaresX - 1 && (Board.IsEmptySquare(boardPieces, currentX + 1, currentY) || IsEnemy(this, boardPieces[currentX + 1, currentY])))
@@ -21,7 +21,7 @@ public class King : Piece
         if (currentY != Board.CountSquaresY - 1 && (Board.IsEmptySquare(boardPieces, currentX, currentY + 1) || IsEnemy(this, boardPieces[currentX, currentY + 1])))
             validMoves.Add(new Vector2Int(currentX, currentY + 1));
 
-        // Up.
+        // Down.
         if (currentY != 0 && (Board.IsEmptySquare(boardPieces, currentX, currentY - 1) || IsEnemy(this, boardPieces[currentX, currentY - 1])))
             validMoves.Add(new Vector2Int(currentX, currentY - 1));
 
@@ -47,7 +47,7 @@ public class King : Piece
     // Add Castling Mov
     public override List<Vector2Int> GetSpecialMoves(ref Piece[,] boardPieces)
     {
-        specialMoves = new List<Vector2Int>();
+        specialMoves.Clear();
         
         // Right Rook.
         for (int i = currentX + 1; i < Board.CountSquaresX; i++)
@@ -78,5 +78,38 @@ public class King : Piece
         }
 
         return specialMoves;
+    }
+
+    public static Vector2Int FindKingPosition(Piece[,] boardPieces, bool isWhiteTurn)
+    {
+        // Find King Position
+        for (int i = 0; i < Board.CountSquaresX; i++)
+        {
+            for (int j = 0; j < Board.CountSquaresY; j++)
+            {
+                Piece piece = boardPieces[i, j];
+
+                if (piece != null && piece.type == PieceType.King && piece.color == (isWhiteTurn ? PieceColor.White : PieceColor.Black))
+                {
+                    return new Vector2Int(i, j);
+                }
+            }
+        }
+        return Vector2Int.zero;
+    }
+
+    public static bool IsInCheck(ref Piece[,] boardPieces, Vector2Int kingPosition, bool isWhiteTurn)
+    {
+        foreach (var piece in boardPieces)
+        {
+            if (piece != null && (piece.color == (isWhiteTurn ? PieceColor.Black : PieceColor.White)))
+            {
+                List<Vector2Int> moves = piece.GetValidMoves(ref boardPieces);
+                
+                if (moves.Contains(kingPosition))
+                    return true; // king is in check;
+            }
+        }
+        return false;
     }
 }

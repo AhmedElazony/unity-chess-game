@@ -1,9 +1,7 @@
 using System.Collections.Generic;
-using Unity.VisualScripting;
+using System.Text;
+using System.Threading;
 using UnityEngine;
-using UnityEngine.SceneManagement;
-using static Unity.Collections.AllocatorManager;
-using static UnityEngine.GraphicsBuffer;
 
 public class Board : MonoBehaviour
 {
@@ -12,9 +10,9 @@ public class Board : MonoBehaviour
     [SerializeField] private Square squarePrefab;
     public static readonly float squareSize = 2f;
 
-    protected Square[,] boardSquares = new Square[8, 8];
+    public Square[,] boardSquares = new Square[8, 8];
     private Color[,] squareColors = new Color[8, 8];
-    
+
     // Square Color after the move (feedback). and square color for available move.
     private readonly Color feedbackColor1 = new Color32(244, 245, 149, 255);
     private readonly Color feedbackColor2 = new Color32(209, 210, 98, 255);
@@ -25,19 +23,19 @@ public class Board : MonoBehaviour
 
     [Header("Game Manager")]
     [SerializeField] private GameManager gameManager;
-    
+
     // Store the Board Pieces Positions.
     public static Piece[,] boardPieces;
 
     // Store The Dead Pieces.
-    protected List<Piece> deadWhitePieces = new List<Piece>();
-    protected List<Piece> deadBlackPieces = new List<Piece>();
+    public static List<Piece> deadWhitePieces = new List<Piece>();
+    public static List<Piece> deadBlackPieces = new List<Piece>();
 
     // Store the position of the selected Chess Piece, So you can move it.
     private Vector2Int selectedPiecePosition = new Vector2Int(-1, -1);
-    
+
     // Store the Available Moves for the selected piece.
-    private List<Vector2Int> pieceAvailableMoves = new List<Vector2Int>();
+    public List<Vector2Int> pieceAvailableMoves = new List<Vector2Int>();
 
     // Store Special Moves Like Castling.
     private List<Vector2Int> pieceSpecialMoves = new List<Vector2Int>();
@@ -45,10 +43,17 @@ public class Board : MonoBehaviour
     // Store the Move Count, So you can change the Squares Colors after the second move.
     private int moveCount = 1;
 
-    // Store The White Turn to play, then you can control turns for players.
-    private bool isWhiteTurn;
+    // Store the moves list for the game.
+    public static List<List<Vector2Int>> movesList = new();
 
-    private bool gameEnded = false;
+    // Store The White Turn to play, then you can control turns for players.
+    public static bool isWhiteTurn;
+
+    public static bool gameEnded = false;
+    public static bool gameStarted = false;
+
+    public static bool playingWithAI = false;
+    public static List<Piece> AITeamPieces = new();
 
     // Count the X, Y Coords (Board Width and Height).
     public const int CountSquaresX = 8;
@@ -66,11 +71,33 @@ public class Board : MonoBehaviour
         this.SpawnPieces();
 
         this.PositionPieces();
+
+        for (int i = 0; i < CountSquaresX; i++)
+        {
+            for (int j = 0; j < CountSquaresY; j++)
+            {
+                if (boardPieces[i, j] != null && boardPieces[i, j].color == PieceColor.Black)
+                    AITeamPieces.Add(boardPieces[i, j]);
+            }
+        }
     }
 
     private void Update()
     {
-        if (gameEnded) return;
+        Vector2Int kingPosition = King.FindKingPosition(boardPieces, isWhiteTurn);
+
+        if (King.IsInCheck(ref boardPieces, kingPosition, isWhiteTurn))
+        {
+            board.boardSquares[kingPosition.x, kingPosition.y].ObjectColor = new Color32(224, 20, 0, 255);
+        }
+
+        if (gameEnded || !gameStarted) return;
+
+        if (playingWithAI && !isWhiteTurn)
+        {
+            AIPlayer.PlayMove();
+            return;
+        }
 
         // Move Chess Pieces With Mouse Button.
         if (Input.GetMouseButtonDown(0))
@@ -96,6 +123,12 @@ public class Board : MonoBehaviour
                             // Get Available Moves for the selected piece.
                             pieceAvailableMoves = boardPieces[xIndex, yIndex].GetAvailableMoves(ref boardPieces);
                             pieceSpecialMoves = boardPieces[xIndex, yIndex].GetSpecialMoves(ref boardPieces);
+                            
+                            if (pieceSpecialMoves != null)
+                                pieceAvailableMoves.AddRange(pieceSpecialMoves);
+
+                            // Check if the king is in check.
+                            PreventCheckMate(isWhiteTurn);
 
                             // Highlight The Availble Moves Squares.
                             this.HighlightAvailableMovesSquares();
@@ -106,7 +139,7 @@ public class Board : MonoBehaviour
                 else // Second click - move piece
                 {
                     Piece piece = boardPieces[selectedPiecePosition.x, selectedPiecePosition.y];
-                    this.MovePieceTo(piece, xIndex, yIndex);
+                    MovePieceTo(piece, xIndex, yIndex);
 
                     selectedPiecePosition = new Vector2Int(-1, -1); // Reset selected piece
                 }
@@ -224,27 +257,30 @@ public class Board : MonoBehaviour
     }
 
     // Move Pieces
-    private void MovePieceTo(Piece piece, int targetX, int targetY)
+    public static void MovePieceTo(Piece piece, int targetX, int targetY)
     {
         if (boardPieces[piece.currentX, piece.currentY] == null) return; // No piece to move
 
         // Get The Squares in this move, so you can change their colors.
-        Square previousSquare = boardSquares[piece.currentX, piece.currentY];
-        Square targetSquare = boardSquares[targetX, targetY];
+        Square previousSquare = board.boardSquares[piece.currentX, piece.currentY];
+        Square targetSquare = board.boardSquares[targetX, targetY];
+
+        // Get The Previous position for the piece.
+        Vector2Int previousPosition = new Vector2Int(piece.currentX, piece.currentY);
 
         // Validate move according to piece rules
         if (!piece.IsValidMove(targetX, targetY))
         {
-            gameManager.PlayAudioClip(gameManager.notifyAudioClip);
-            ResetBoardColors(null, null);
+            board.gameManager.PlayAudioClip(board.gameManager.notifyAudioClip);
+            board.ResetBoardColors(null, null);
             return;
         }
 
+        // Remove the colors of available moves.
+        board.ResetBoardColors(previousSquare, targetSquare);
+
         // change turns of the movement.
         isWhiteTurn = !isWhiteTurn;
-
-        // Remove the colors of available moves.
-        this.ResetBoardColors(previousSquare, targetSquare);
 
         // Is The Move an attack?
         bool isAttacking = false;
@@ -255,8 +291,8 @@ public class Board : MonoBehaviour
             // Target Position is Occupied with a piece in the same team.
             if (boardPieces[targetX, targetY].color == piece.color)
             {
-                gameManager.PlayAudioClip(gameManager.notifyAudioClip);
-                this.ResetBoardColors(null, null);
+                board.gameManager.PlayAudioClip(board.gameManager.notifyAudioClip);
+                board.ResetBoardColors(null, null);
                 return;
             }
             else // Target Position is Occupied with an enemy piece, So eat it.
@@ -267,18 +303,17 @@ public class Board : MonoBehaviour
                 else
                     deadBlackPieces.Add(boardPieces[targetX, targetY]);
 
+                boardPieces[targetX, targetY].isDead = true;
+
                 // Play Attacking Audio Clip.
-                gameManager.PlayAudioClip(gameManager.captureAudioClip);
+                board.gameManager.PlayAudioClip(board.gameManager.captureAudioClip);
 
-                this.PositionDeadPiece(boardPieces[targetX, targetY]);
-
-                if (boardPieces[targetX, targetY].type == PieceType.King)
-                    CheckMate(piece.color);
+                board.PositionDeadPiece(boardPieces[targetX, targetY]);
             }
         }
 
         // Check For King Castling
-        if (piece.type == PieceType.King && pieceSpecialMoves.Contains(new Vector2Int(targetX, targetY)))
+        if (piece.type == PieceType.King && board.pieceSpecialMoves != null && board.pieceSpecialMoves.Contains(new Vector2Int(targetX, targetY)))
         {
             Piece rook = (targetX > piece.currentX) ? boardPieces[targetX + 1, targetY] : boardPieces[targetX - 2, targetY];
             piece.CastleKing(rook, ref boardPieces);
@@ -287,20 +322,36 @@ public class Board : MonoBehaviour
         // Move the selected piece in the array.
         boardPieces[targetX, targetY] = piece;
         boardPieces[piece.currentX, piece.currentY] = null;
-        
+
+        // Check For Promoting Pawn.
+        if (piece.type == PieceType.Pawn && targetY == ((piece.color == PieceColor.White) ? Board.CountSquaresY - 1 : 0))
+        {
+            Piece.TurnIntoQueen(piece, targetX, targetY);
+        }
+
         piece.hasMoved = true;
-        
+
         // Position the Piece into the target Position.
         PositionSinglePiece(piece, targetX, targetY);
 
         // Play Movement Audio Clip.
         if (!isAttacking)
-            gameManager.PlayAudioClip(gameManager.moveAudioClip);
+            board.gameManager.PlayAudioClip(board.gameManager.moveAudioClip);
 
-        moveCount++;
+        board.moveCount++;
+
+        // Add this move to the movesList.
+        movesList.Add(new List<Vector2Int>() { previousPosition, new(targetX, targetY) });
 
         // Make A Square Feedback (Change its Color) for every move.
-        this.ChangeMoveColors(previousSquare, targetSquare);
+        board.ChangeMoveColors(previousSquare, targetSquare);
+
+        if (IsCheckMate() == 1)
+            CheckMate(piece.color);
+        
+        
+        if (IsDraw())
+            CheckMate(piece.color, true);
     }
 
     private void ChangeMoveColors(Square previous, Square target)
@@ -370,12 +421,276 @@ public class Board : MonoBehaviour
 
     public static bool IsEmptySquare(Piece[,] board, int xIndex, int yIndex)
     {
+        if (xIndex < 0 || yIndex < 0 || xIndex >= Board.CountSquaresX || yIndex >= Board.CountSquaresY)
+            Debug.Log($"xIndex: {xIndex}, yIndex: {yIndex}");
+        
         return board[xIndex, yIndex] == null;
     }
 
-    private void CheckMate(PieceColor color)
+    private static void CheckMate(PieceColor color, bool draw = false)
     {
         gameEnded = true;
-        gameManager.EndGame((int)color + 1);
+        if (draw == false)
+            board.gameManager.EndGame((int)color + 1);
+        else
+            board.gameManager.EndGame(3);
+    }
+
+    public void PreventCheckMate(bool isWhiteTurn)
+    {
+        Vector2Int kingPosition = King.FindKingPosition(boardPieces, isWhiteTurn);
+
+        SimulateMoveForSinglePiece(boardPieces[selectedPiecePosition.x, selectedPiecePosition.y], ref pieceAvailableMoves, kingPosition);
+    }
+
+    public static void SimulateMoveForSinglePiece(Piece piece, ref List<Vector2Int> moves, Vector2Int kingPosition)
+    {
+        // Save the current values, to reset after simulation
+        int actualX = piece.currentX;
+        int actualY = piece.currentY;
+        bool actualMoveState = piece.hasMoved;
+        bool actualDeadState = piece.isDead;
+        List<Vector2Int> movesToRemove = new List<Vector2Int>();
+
+        // Iterate thrwo all moves, simulate them and check if we are in Check.
+        for (int i = 0; i < moves.Count; i++)
+        {
+            int simX = moves[i].x;
+            int simY = moves[i].y;
+
+            Vector2Int kingPositionInSimulation = new Vector2Int(kingPosition.x, kingPosition.y);
+
+            // Change King position if we simulated its move.
+            if (piece.type == PieceType.King)
+                kingPositionInSimulation = new Vector2Int(simX, simY);
+
+            // Copy the Board [,] into simulationBoard
+            Piece[,] simBoard = new Piece[CountSquaresX, CountSquaresY];
+            List<Piece> simulationAttackingPieces = new List<Piece>();
+            for (int x = 0; x < CountSquaresX; x++)
+            {
+                for (int y = 0; y < CountSquaresY; y++)
+                {
+                    if (boardPieces[x, y] != null)
+                    {
+                        simBoard[x, y] = boardPieces[x, y];
+
+                        if (simBoard[x, y].color != piece.color)
+                            simulationAttackingPieces.Add(simBoard[x, y]);
+                    }
+                }
+            }
+
+            // Simulate Move
+            simBoard[actualX, actualY] = null;
+            piece.currentX = simX;
+            piece.currentY = simY;
+            simBoard[simX, simY] = piece;
+
+            // did one of the pieces got captured during the simulation?
+            var deadPiece = simulationAttackingPieces.Find(c => c.currentX == simX && c.currentY == simY);
+            if (deadPiece != null)
+                simulationAttackingPieces.Remove(deadPiece);
+            
+            // Get All the simulated attaking pieces moves
+            List<Vector2Int> simulationMoves = new List<Vector2Int>();
+            for (int x = 0; x < simulationAttackingPieces.Count; x++)
+            {
+                var pieceMoves = simulationAttackingPieces[x].GetValidMoves(ref simBoard);
+                for (int y = 0; y < pieceMoves.Count; y++)
+                {
+                    simulationMoves.Add(pieceMoves[y]);
+                }
+            }
+
+            // Check if the king in check after the simulation move.
+            if (simulationMoves.Contains(kingPositionInSimulation))
+            {
+                movesToRemove.Add(moves[i]); // Remove this move from the valid moves for the piece.
+            }
+            
+            // Reset the piece position.
+            piece.currentX = actualX;
+            piece.currentY = actualY;
+        }
+
+        // Remove from the current available move list.
+        for (int i = 0; i < movesToRemove.Count; i++)
+        {
+            if (moves.Contains(movesToRemove[i]))
+                moves.Remove(movesToRemove[i]);
+            
+            if (board.pieceSpecialMoves != null && board.pieceSpecialMoves.Contains(movesToRemove[i]))
+                board.pieceSpecialMoves.Remove(movesToRemove[i]);
+        }
+    }
+
+    public static int IsCheckMate()
+    {
+        PieceColor targetColor = isWhiteTurn ? PieceColor.White : PieceColor.Black;
+
+        List<Piece> attackingPieces = new();
+        List<Piece> defendingPieces = new();
+        Piece king = null;
+
+        for (int i = 0; i < CountSquaresX; i++)
+        {
+            for (int j = 0; j < CountSquaresY; j++)
+            {
+                if (boardPieces[i, j] != null)
+                {
+                    if (boardPieces[i, j].color == targetColor)
+                    {
+                        defendingPieces.Add(boardPieces[i, j]);
+                        
+                        if (boardPieces[i, j].type == PieceType.King)
+                        {
+                            king = boardPieces[i, j];
+                        }
+                    }
+                    else
+                    {
+                        attackingPieces.Add(boardPieces[i, j]);
+                    }
+                }
+            }
+        }
+
+        // Is the king Is attacked?
+        if (King.IsInCheck(ref boardPieces, new(king.currentX, king.currentY), isWhiteTurn))
+        {
+            // King is under attack, Can we Block the check by Defending piece?
+            for (int i = 0; i < defendingPieces.Count; i++)
+            {
+                List<Vector2Int> defendingMoves = defendingPieces[i].GetValidMoves(ref boardPieces);
+                SimulateMoveForSinglePiece(defendingPieces[i], ref defendingMoves, new(king.currentX, king.currentY));
+
+                if (defendingMoves.Count != 0)
+                    return 0;
+            }
+
+            // if there are defending moves, and not deleted, this means, king is in checkmate.    
+            return 1;
+        }
+        else
+        {
+            for (int i = 0; i < defendingPieces.Count; i++)
+            {
+                List<Vector2Int> defendingMoves = defendingPieces[i].GetValidMoves(ref boardPieces);
+                SimulateMoveForSinglePiece(defendingPieces[i], ref defendingMoves, new(king.currentX, king.currentY));
+                
+                if (defendingMoves.Count != 0)
+                    return 0;
+            }
+
+            // staleMate Condition.
+            return 2;
+        }
+    }
+
+    public static bool IsDraw()
+    {
+        List<Piece> whitePieces = new List<Piece>();
+        List<Piece> blackPieces = new List<Piece>();
+
+        for (int i = 0; i < CountSquaresX; i++)
+        {
+            for (int j = 0; j < CountSquaresY; j++)
+            {
+                if (boardPieces[i, j] != null)
+                {
+                    if (boardPieces[i, j].color == PieceColor.White)
+                        whitePieces.Add(boardPieces[i, j]);
+                    else
+                        blackPieces.Add(boardPieces[i, j]);
+                }
+            }
+        }
+
+        Vector2Int kingPosition = King.FindKingPosition(boardPieces, isWhiteTurn);
+        List<Vector2Int> pieceMoves = new();
+        List<List<Vector2Int>> moves = new();
+
+        if (isWhiteTurn)
+        {
+            for (int i = 0; i < whitePieces.Count; i++)
+            {
+                pieceMoves = whitePieces[i].GetValidMoves(ref boardPieces);
+                SimulateMoveForSinglePiece(whitePieces[i], ref pieceMoves, kingPosition);
+                moves.Add(pieceMoves);
+            }
+        } 
+        else
+        {
+            for (int i = 0; i < blackPieces.Count; i++)
+            {
+                pieceMoves = blackPieces[i].GetValidMoves(ref boardPieces);
+                SimulateMoveForSinglePiece(blackPieces[i], ref pieceMoves, kingPosition);
+                moves.Add(pieceMoves);
+            }
+        }
+
+        int movesCount = 0;
+        for (int i = 0; i < moves.Count; i++)
+        {
+            movesCount += moves[i].Count;
+        }
+
+        if (!King.IsInCheck(ref boardPieces, kingPosition, isWhiteTurn) && movesCount == 0) return true;
+
+        if (whitePieces.Count == 1 && blackPieces.Count == 1) return true;
+        if (whitePieces.Count + blackPieces.Count == 3)
+        {
+            if (whitePieces.Count == 2)
+            {
+                for (int i = 0; i < whitePieces.Count; i++)
+                {
+                    if (whitePieces[i].type == PieceType.Bishop)
+                        return true;
+                    else if (whitePieces[i].type == PieceType.Knight)
+                        return true;
+                }
+            }
+            else if (blackPieces.Count == 2)
+            {
+                for (int i = 0; i < blackPieces.Count; i++)
+                {
+                    if (blackPieces[i].type == PieceType.Bishop)
+                        return true;
+                    else if (blackPieces[i].type == PieceType.Knight)
+                        return true;
+                }
+            }
+        }
+
+        if (whitePieces.Count + blackPieces.Count == 5)
+        {
+            int bishop = 0;
+            whitePieces.AddRange(blackPieces);
+            for (int i = 0; i < whitePieces.Count; i++)
+            {
+                if (whitePieces[i].type == PieceType.Bishop)
+                    bishop++;
+            }
+            if (bishop == 3) return true;
+        }
+
+        return false;
+    }
+
+    public static Piece[,] DeepCopy(Piece[,] original)
+    {
+        Piece[,] copy = new Piece[original.GetLength(0), original.GetLength(1)];
+        for (int i = 0; i < original.GetLength(0); i++)
+        {
+            for (int j = 0; j < original.GetLength(1); j++)
+            {
+                if (original[i, j] != null)
+                {
+                    copy[i, j] = original[i, j];
+                }
+            }
+        }
+        return copy;
     }
 }

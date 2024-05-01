@@ -4,9 +4,11 @@ using UnityEngine;
 
 public class Bishop : Piece
 {
+    public new int Value { get => PieceValue.Bishop; }
+
     public override List<Vector2Int> GetAvailableMoves(ref Piece[,] boardPieces)
     {
-        validMoves = new List<Vector2Int>();
+        validMoves.Clear();
 
         // Top Right Diagonal
         for (int i = currentX + 1, j = currentY + 1; i < Board.CountSquaresX && j < Board.CountSquaresY; i++, j++)

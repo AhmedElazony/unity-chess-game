@@ -4,9 +4,11 @@ using UnityEngine;
 
 public class Knight : Piece
 {
+    public new int Value { get => PieceValue.Knight; }
+
     public override List<Vector2Int> GetAvailableMoves(ref Piece[,] boardPieces)
     {
-        validMoves = new List<Vector2Int>();
+        validMoves.Clear();
 
         // Top Right
         int newX = currentX + 1, newY = currentY + 2;

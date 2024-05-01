@@ -4,9 +4,11 @@ using UnityEngine;
 
 public class Queen : Piece
 {
+    public new int Value { get => PieceValue.Queen; }
+
     public override List<Vector2Int> GetAvailableMoves(ref Piece[,] boardPieces)
     {
-        validMoves = new List<Vector2Int>();
+        validMoves.Clear();
 
         // Check For Up Moves
         for (int i = currentY + 1; i < Board.CountSquaresY; i++)
