@@ -19,13 +19,13 @@ public class Evaluation
                 {
                     whiteScore += piece.Value - GetMobilityPenalty(boardPieces, i, j);
                     whiteScore += GetPawnStructureBonus(boardPieces, i, j);
-                    //whiteScore += piece.currentX;
+                    whiteScore += piece.currentY;
                 }
                 else
                 {
                     blackScore += piece.Value - GetMobilityPenalty(boardPieces, i, j);
                     blackScore += GetPawnStructureBonus(boardPieces, i, j);
-                    //blackScore += piece.currentX;
+                    blackScore += (7 - piece.currentY);
                 }
             }
         }
@@ -35,19 +35,21 @@ public class Evaluation
 
         if (King.IsInCheck(ref boardPieces, whiteKingPosition, false))
         {
-            whiteScore -= 5;
-            blackScore += 5;
+            whiteScore -= 100;
+            blackScore += 100;
         }
 
         if (King.IsInCheck(ref boardPieces, blackKingPosition, true))
         {
-            blackScore -= 5;
-            whiteScore += 5;
+            blackScore -= 100;
+            whiteScore += 100;
         }
+
+        
 
 
         int eval = whiteScore - blackScore;
-
+        int prespective = Board.isWhiteTurn ? 1 : -1;
         return eval;
     }
 

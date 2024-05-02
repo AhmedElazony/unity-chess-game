@@ -6,7 +6,6 @@ public static class ChessAI
 {
     public static PieceMove FindBestMove(Piece[,] boardPieces, int depth, bool isWhiteTurn)
     {
-        //Piece[,] simBoard = Board.DeepCopy(boardPieces);
         int bestScore = isWhiteTurn ? int.MinValue : int.MaxValue;
         Piece bestPieceToMove = null;
         Vector2Int bestMove = Vector2Int.zero;
@@ -14,15 +13,10 @@ public static class ChessAI
 
         List<PieceMove> possibleMoves = GetAllPossibleMoves(boardPieces, isWhiteTurn ? PieceColor.White : PieceColor.Black);
         foreach (var move in possibleMoves)
-        {
-            //Vector2Int piecePosition = new(move.Piece.currentX, move.Piece.currentY);
-            
+        {   
             Piece[,] simBoard = SimulateMove(boardPieces, move.Piece, move.To);
 
-            /*move.Piece.currentX = piecePosition.x;
-            move.Piece.currentY = piecePosition.y;*/
-
-            score = Minimax(simBoard, depth - 1, !isWhiteTurn);
+            score = Minimax(simBoard, depth - 1, !isWhiteTurn, int.MinValue, int.MaxValue);
 
             if ((isWhiteTurn && score > bestScore) || (!isWhiteTurn && score < bestScore))
             {
@@ -35,7 +29,7 @@ public static class ChessAI
         return new PieceMove(bestPieceToMove, new(bestPieceToMove.currentX, bestPieceToMove.currentY), bestMove, score);
     }
 
-    public static int Minimax(Piece[,] boardPieces, int depth, bool maximizingPlayer)
+    public static int Minimax(Piece[,] boardPieces, int depth, bool maximizingPlayer, int alpha, int beta)
     {
         if (depth == 0 || Board.gameEnded)
             return Evaluation.GetScore(boardPieces);
@@ -48,8 +42,12 @@ public static class ChessAI
             foreach (var move in possibleMoves)
             {
                 Piece[,] simBaord = SimulateMove(boardPieces, move.Piece, move.To);
-                int score = Minimax(simBaord, depth - 1, false);
+                int score = Minimax(simBaord, depth - 1, false, alpha, beta);
                 maxValue = Mathf.Max(maxValue, score);
+                alpha = Mathf.Max(alpha, score);
+
+                if (beta <= alpha)
+                    break;
             }
             return maxValue;
         }
@@ -61,8 +59,12 @@ public static class ChessAI
             foreach (var move in possibleMoves)
             {
                 Piece[,] simBaord = SimulateMove(boardPieces, move.Piece, move.To);
-                int score = Minimax(simBaord, depth - 1, true);
+                int score = Minimax(simBaord, depth - 1, true, alpha, beta);
                 minValue = Mathf.Min(minValue, score);
+                beta = Mathf.Min(beta, score);
+
+                if (beta <= alpha)
+                    break;
             }
             return minValue;
         }

@@ -346,7 +346,7 @@ public class Board : MonoBehaviour
         // Make A Square Feedback (Change its Color) for every move.
         board.ChangeMoveColors(previousSquare, targetSquare);
 
-        if (IsCheckMate() == 1)
+        if (IsCheckMate(boardPieces) == 1)
             CheckMate(piece.color);
         
         
@@ -525,7 +525,7 @@ public class Board : MonoBehaviour
         }
     }
 
-    public static int IsCheckMate()
+    public static int IsCheckMate(Piece[,] boardPieces)
     {
         PieceColor targetColor = isWhiteTurn ? PieceColor.White : PieceColor.Black;
 
